@@ -1,0 +1,392 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    mysql.oracle.com/fqdn-template: '{service}.{namespace}.svc.{domain}'
+  creationTimestamp: "2024-06-13T02:40:50Z"
+  generation: 1
+  labels:
+    app.kubernetes.io/component: database
+    app.kubernetes.io/created-by: mysql-operator
+    app.kubernetes.io/instance: mysql-innodbcluster-innodb1
+    app.kubernetes.io/managed-by: mysql-operator
+    app.kubernetes.io/name: mysql-innodbcluster
+    mysql.oracle.com/cluster: innodb1
+    mysql.oracle.com/instance-type: group-member
+    tier: mysql
+  name: innodb1
+  namespace: innodbcluster
+  ownerReferences:
+  - apiVersion: mysql.oracle.com/v2
+    blockOwnerDeletion: true
+    controller: true
+    kind: InnoDBCluster
+    name: innodb1
+    uid: 778d4634-7b53-4984-8d13-54825328ca23
+  resourceVersion: "3901626"
+  uid: 4555a88b-33fd-41f1-b342-e9bbbd7ff668
+spec:
+  podManagementPolicy: Parallel
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: database
+      app.kubernetes.io/created-by: mysql-operator
+      app.kubernetes.io/instance: mysql-innodbcluster-innodb1-mysql-server
+      app.kubernetes.io/managed-by: mysql-operator
+      app.kubernetes.io/name: mysql-innodbcluster-mysql-server
+      component: mysqld
+      mysql.oracle.com/cluster: innodb1
+      mysql.oracle.com/instance-type: group-member
+      tier: mysql
+  serviceName: innodb1-instances
+  template:
+    metadata:
+      annotations:
+        mysql.oracle.com/fqdn-template: '{service}.{namespace}.svc.{domain}'
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: database
+        app.kubernetes.io/created-by: mysql-operator
+        app.kubernetes.io/instance: mysql-innodbcluster-innodb1-mysql-server
+        app.kubernetes.io/managed-by: mysql-operator
+        app.kubernetes.io/name: mysql-innodbcluster-mysql-server
+        component: mysqld
+        mysql.oracle.com/cluster: innodb1
+        mysql.oracle.com/instance-type: group-member
+        tier: mysql
+    spec:
+      containers:
+      - command:
+        - mysqlsh
+        - --pym
+        - mysqloperator
+        - sidecar
+        - --pod-name
+        - $(POD_NAME)
+        - --pod-namespace
+        - $(POD_NAMESPACE)
+        - --datadir
+        - /var/lib/mysql
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: MYSQL_UNIX_PORT
+          value: /var/run/mysqld/mysql.sock
+        - name: MYSQLSH_USER_CONFIG_HOME
+          value: /mysqlsh
+        - name: MYSQL_OPERATOR_K8S_CLUSTER_DOMAIN
+          value: cluster.local
+        - name: MYSQLSH_CREDENTIAL_STORE_SAVE_PASSWORDS
+          value: never
+        image: container-registry.oracle.com/mysql/community-operator:8.4.0-2.1.3
+        imagePullPolicy: IfNotPresent
+        name: sidecar
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/run/mysqld
+          name: rundir
+        - mountPath: /etc/my.cnf.d
+          name: mycnfdata
+          subPath: my.cnf.d
+        - mountPath: /etc/my.cnf
+          name: mycnfdata
+          subPath: my.cnf
+        - mountPath: /mysqlsh
+          name: shellhome
+        - mountPath: /tmp
+          name: sidecar-tmp
+      - args:
+        - mysqld
+        - --user=mysql
+        env:
+        - name: MYSQL_UNIX_PORT
+          value: /var/run/mysqld/mysql.sock
+        - name: MYSQLSH_CREDENTIAL_STORE_SAVE_PASSWORDS
+          value: never
+        image: container-registry.oracle.com/mysql/community-server:8.4.0
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - sleep 60 && mysqladmin -ulocalroot shutdown
+        livenessProbe:
+          exec:
+            command:
+            - /livenessprobe.sh
+          failureThreshold: 10
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: mysql
+        ports:
+        - containerPort: 3306
+          name: mysql
+          protocol: TCP
+        - containerPort: 33060
+          name: mysqlx
+          protocol: TCP
+        - containerPort: 33061
+          name: gr-xcom
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /readinessprobe.sh
+          failureThreshold: 10000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - /livenessprobe.sh
+            - "8"
+          failureThreshold: 10000
+          initialDelaySeconds: 5
+          periodSeconds: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: datadir
+        - mountPath: /var/run/mysqld
+          name: rundir
+        - mountPath: /etc/my.cnf.d
+          name: mycnfdata
+          subPath: my.cnf.d
+        - mountPath: /etc/my.cnf
+          name: mycnfdata
+          subPath: my.cnf
+        - mountPath: /livenessprobe.sh
+          name: initconfdir
+          subPath: livenessprobe.sh
+        - mountPath: /readinessprobe.sh
+          name: initconfdir
+          subPath: readinessprobe.sh
+        - mountPath: /var/lib/mysql-files
+          name: varlibmysqlfiles
+        - mountPath: /tmp
+          name: mysql-tmp
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - bash
+        - -c
+        - chown 27:27 /var/lib/mysql && chmod 0700 /var/lib/mysql
+        env:
+        - name: MYSQL_OPERATOR_K8S_CLUSTER_DOMAIN
+          value: cluster.local
+        - name: MYSQLSH_CREDENTIAL_STORE_SAVE_PASSWORDS
+          value: never
+        image: container-registry.oracle.com/mysql/community-operator:8.4.0-2.1.3
+        imagePullPolicy: IfNotPresent
+        name: fixdatadir
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - FOWNER
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: datadir
+      - command:
+        - mysqlsh
+        - --log-level=@INFO
+        - --pym
+        - mysqloperator
+        - init
+        - --pod-name
+        - $(POD_NAME)
+        - --pod-namespace
+        - $(POD_NAMESPACE)
+        - --datadir
+        - /var/lib/mysql
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: MYSQL_OPERATOR_K8S_CLUSTER_DOMAIN
+          value: cluster.local
+        - name: MYSQLSH_USER_CONFIG_HOME
+          value: /tmp
+        - name: MYSQLSH_CREDENTIAL_STORE_SAVE_PASSWORDS
+          value: never
+        image: container-registry.oracle.com/mysql/community-operator:8.4.0-2.1.3
+        imagePullPolicy: IfNotPresent
+        name: initconf
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /mnt/initconf
+          name: initconfdir
+          readOnly: true
+        - mountPath: /var/lib/mysql
+          name: datadir
+        - mountPath: /mnt/mycnfdata
+          name: mycnfdata
+        - mountPath: /tmp
+          name: initconf-tmp
+      - args:
+        - mysqld
+        - --user=mysql
+        env:
+        - name: MYSQL_INITIALIZE_ONLY
+          value: "1"
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: rootPassword
+              name: innodb1-cluster-secret
+        - name: MYSQLSH_USER_CONFIG_HOME
+          value: /tmp
+        image: container-registry.oracle.com/mysql/community-server:8.4.0
+        imagePullPolicy: IfNotPresent
+        name: initmysql
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: datadir
+        - mountPath: /var/run/mysqld
+          name: rundir
+        - mountPath: /etc/my.cnf.d
+          name: mycnfdata
+          subPath: my.cnf.d
+        - mountPath: /docker-entrypoint-initdb.d
+          name: mycnfdata
+          subPath: docker-entrypoint-initdb.d
+        - mountPath: /etc/my.cnf
+          name: mycnfdata
+          subPath: my.cnf
+        - mountPath: /tmp
+          name: initmysql-tmp
+        - mountPath: /var/lib/mysql-files
+          name: varlibmysqlfiles
+      readinessGates:
+      - conditionType: mysql.oracle.com/configured
+      - conditionType: mysql.oracle.com/ready
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 27
+        runAsGroup: 27
+        runAsUser: 27
+      serviceAccount: innodb1-sa
+      serviceAccountName: innodb1-sa
+      subdomain: innodb1
+      terminationGracePeriodSeconds: 120
+      volumes:
+      - emptyDir: {}
+        name: mycnfdata
+      - emptyDir: {}
+        name: rundir
+      - emptyDir: {}
+        name: varlibmysqlfiles
+      - configMap:
+          defaultMode: 493
+          name: innodb1-initconf
+        name: initconfdir
+      - emptyDir: {}
+        name: shellhome
+      - emptyDir: {}
+        name: initconf-tmp
+      - emptyDir: {}
+        name: initmysql-tmp
+      - emptyDir: {}
+        name: mysql-tmp
+      - emptyDir: {}
+        name: sidecar-tmp
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      creationTimestamp: null
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+    status:
+      phase: Pending
+status:
+  availableReplicas: 0
+  collisionCount: 0
+  currentReplicas: 3
+  currentRevision: innodb1-6c78488946
+  observedGeneration: 1
+  replicas: 3
+  updateRevision: innodb1-6c78488946
+  updatedReplicas: 3

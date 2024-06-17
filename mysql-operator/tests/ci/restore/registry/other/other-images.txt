@@ -1,0 +1,2 @@
+mcr.microsoft.com/azure-storage/azurite
+mcr.microsoft.com/azure-cli

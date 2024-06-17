@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  # 部署名字
+  name: sts1sh
+spec:
+  replicas: 1
+  serviceName: sts1sh
+  # 用来查找关联的 Pod，所有标签都匹配才行
+  selector:
+    matchLabels:
+      app: sts1sh
+  # 定义 Pod 相关数据
+  template:
+    metadata:
+      labels:
+        app: sts1sh
+    spec:
+      # 定义容器，可以多个
+      containers:
+      - name: sts1sh # 容器名字
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: container-registry.oracle.com/mysql/community-operator:8.4.0-2.1.3
+        imagePullPolicy: IfNotPresent
+        command:  ["sh","-c","while true; do date; sleep 10; done"]

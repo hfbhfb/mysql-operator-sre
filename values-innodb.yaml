@@ -1,0 +1,32 @@
+image:
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    enabled: false
+    secretName:
+
+
+credentials:
+  root:
+    user: root
+    password: root
+    host: "%"
+
+tls:
+  useSelfSigned: true
+#  caSecretName:
+#  serverCertAndPKsecretName:
+#  routerCertAndPKsecretName: # our use router.certAndPKsecretName
+
+#serverVersion: 8.0.31
+serverInstances: 3
+routerInstances: 1 # or use router.instances
+#baseServerId: 1000
+
+
+datadirVolumeClaimTemplate:
+  storageClassName: "mylocalsc1"
+  accessModes:
+  resources:
+    requests:
+      storage:
+
